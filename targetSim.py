@@ -1,16 +1,14 @@
 import sys
-sys.path.append('/home/oskar/Documents/Master/Master_Branch/autosea')
-
-
+sys.path.append('/home/oskar/Documents/Master/Clutter_map_Branch/autosea')
 
 import numpy as np
 import matplotlib.pyplot as plt
-# import matplotlib.ticker as ticker
 import trajectory_tools
 from autoseapy import tracking
 from autoseapy import simulation
 from autoseapy import visualization
 from autoseapy import track_initiation
+from autoseapy import clutter_maps
 # import analysis_sim
 
 
@@ -71,12 +69,19 @@ target_model = tracking.DWNAModel(q)
 PDAF_tracker = tracking.PDAFTracker(P_D, target_model, gate)
 M_of_N = track_initiation.MOfNInitiation(M_req, N_test, PDAF_tracker, gate)
 
-IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma)
+# IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma)
+N_timesteps = 20
+grid_density = 500
+# true_clutter_map = clutter_maps.GeometricClutterMap(-radar_range, radar_range, -radar_range, radar_range, clutter_density)
+true_clutter_map = clutter_maps.nonuniform_musicki_map()
+classic_clutter_map = clutter_maps.ClassicClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
+spatial_clutter_map = clutter_maps.SpatialClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
+IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma, clutter_map= classic_clutter_map)
 IPDAInitiation = track_initiation.IPDAInitiation(initiate_thresh, terminate_thresh, IPDAF_tracker, gate)
 
 initiation_type = 1   # 0: MofN     else: IPDA
 if initiation_type == 0:
-    track_termination = tracking.TrackTerminator(N_terminate)
+    track_termination = tracking.TrackTerminatorMofN(N_terminate)
     track_manager = tracking.Manager(PDAF_tracker, M_of_N, track_termination)
 else:
     track_termination = tracking.TrackTerminatorIPDA(terminate_thresh)
@@ -96,7 +101,10 @@ for k, t in enumerate(time):
 # Run tracking: Test scenario
 measurements_all = []
 for k, timestamp in enumerate(time):
-    measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
+    # measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
+    measurements = radar.generate_target_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
+    measurements_clutter = true_clutter_map.generate_clutter(timestamp)
+    measurements = measurements.union(measurements_clutter)
     # measurements = radar.generate_clutter_measurements(timestamp)
     measurements_all.append(measurements)
     track_manager.step(measurements, timestamp)
@@ -104,10 +112,11 @@ for k, timestamp in enumerate(time):
         print(k)
 
 # ------------------------------------------------------------------------------
+print(len(track_manager.track_file))
 
 # Plot
-fig, ax = visualization.plot_measurements(measurements_all)
-# fig, ax = visualization.setup_plot(None)
+# fig, ax = visualization.plot_measurements(measurements_all)
+fig, ax = visualization.setup_plot(None)
 for ship in range(num_ships):
     # ax.plot(x_true[ship, 2, 0:100], x_true[ship, 0, 0:100], 'k', label='True trajectory '+str(ship+1))
     ax.plot(x_true[ship, 2, :], x_true[ship, 0, :], 'k', label='True trajectory ' + str(ship + 1))
@@ -119,6 +128,9 @@ ax.set_xlabel('East[m]')
 ax.set_ylabel('North[m]')
 ax.set_title('Track position with sample rate: 1/s')
 ax.legend()
+
+fig, ax = plt.subplots()
+track_manager.tracking_method.clutter_map.plot_density_map(ax)
 
 # Analysis on completed test scenario
 # analysis_sim.error_estimates(track_manager.track_file, x_true, t_end, c1, c2)
