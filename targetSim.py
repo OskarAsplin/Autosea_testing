@@ -15,7 +15,7 @@ from autoseapy import clutter_maps
 
 # Global constants
 clutter_density = 2e-5
-radar_range = 1000
+radar_range = 500
 
 # Initialized target
 num_ships = 2
@@ -25,7 +25,7 @@ x0 = [x0_1, x0_2]
 
 # Time for simulation
 dt = 1
-t_end = 25
+t_end = 30
 time = np.arange(0, t_end, dt)
 K = len(time)             # Num steps
 
@@ -50,7 +50,7 @@ P_D = 0.9
 p11 = 0.98          # Survival probability
 p21 = 0             # Probability of birth
 P_Markov = np.array([[p11, 1 - p11], [p21, 1 - p21]])
-initiate_thresh = 0.95
+initiate_thresh = 0.99
 terminate_thresh = 0.10
 # MofN
 N_test = 6
@@ -69,14 +69,15 @@ target_model = tracking.DWNAModel(q)
 PDAF_tracker = tracking.PDAFTracker(P_D, target_model, gate)
 M_of_N = track_initiation.MOfNInitiation(M_req, N_test, PDAF_tracker, gate)
 
-# IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma)
 N_timesteps = 20
-grid_density = 500
+grid_density = 50
 # true_clutter_map = clutter_maps.GeometricClutterMap(-radar_range, radar_range, -radar_range, radar_range, clutter_density)
-true_clutter_map = clutter_maps.nonuniform_musicki_map()
+# true_clutter_map = clutter_maps.nonuniform_musicki_map()
+true_clutter_map = clutter_maps.nonuniform_test_map(radar_range)
 classic_clutter_map = clutter_maps.ClassicClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
 spatial_clutter_map = clutter_maps.SpatialClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
-IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma, clutter_map= classic_clutter_map)
+temporal_clutter_map = clutter_maps.TemporalClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
+IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma, clutter_map=spatial_clutter_map)
 IPDAInitiation = track_initiation.IPDAInitiation(initiate_thresh, terminate_thresh, IPDAF_tracker, gate)
 
 initiation_type = 1   # 0: MofN     else: IPDA
@@ -115,8 +116,8 @@ for k, timestamp in enumerate(time):
 print(len(track_manager.track_file))
 
 # Plot
-# fig, ax = visualization.plot_measurements(measurements_all)
-fig, ax = visualization.setup_plot(None)
+fig, ax = visualization.plot_measurements(measurements_all)
+# fig, ax = visualization.setup_plot(None)
 for ship in range(num_ships):
     # ax.plot(x_true[ship, 2, 0:100], x_true[ship, 0, 0:100], 'k', label='True trajectory '+str(ship+1))
     ax.plot(x_true[ship, 2, :], x_true[ship, 0, :], 'k', label='True trajectory ' + str(ship + 1))
