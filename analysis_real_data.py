@@ -5,6 +5,7 @@ import trajectory_tools
 import matplotlib.ticker as ticker
 import tracking
 import track_initiation
+import codecs
 
 
 def rmse(track_file, true_state, time):
@@ -139,15 +140,13 @@ def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
                 true_MofN_arr.append(true_MofN[str(M_req) + " of " + str(N_test)])
                 false_MofN_arr.append(false_MofN[str(M_req) + " of " + str(N_test)])
 
-    print("True IPDA: ", true_IPDA)
-    print("False IPDA: ", false_IPDA)
-    print("True MofN: ", true_MofN)
-    print("False MofN: ", false_MofN)
-    print("Arrays:")
-    print("True IPDA: ", true_IPDA_arr)
-    print("False IPDA: ", false_IPDA_arr)
-    print("True MofN: ", true_MofN_arr)
-    print("False MofN: ", false_MofN_arr)
+    str_out = ('True IPDA: ' + str(true_IPDA) + '\n\nFalse IPDA: ' + str(false_IPDA) +
+        '\n\nTrue MofN: ' + str(true_MofN) + '\n\nFalse MofN: ' + str(false_MofN) +
+        '\n\nArrays:\nTrue IPDA: ' + str(true_IPDA_arr) + '\n\nFalse IPDA: ' + str(false_IPDA_arr) +
+        '\n\nTrue MofN: ' + str(true_MofN) + '\n\nFalse MofN: ' + str(false_MofN_arr))
+
+    with codecs.open('./Results/{}.txt'.format('roc_sim'), 'wt', 'utf-8') as file:
+       file.write(str_out)
 
     # Plot
 
