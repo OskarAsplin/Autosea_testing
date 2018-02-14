@@ -1,14 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import visualization
 import matplotlib.ticker as ticker
-import tracking
-import track_initiation
-import simulation
+import codecs
+
+from autoseapy import tracking
+from autoseapy import simulation
+from autoseapy import visualization
+from autoseapy import track_initiation
 
 
-def true_tracks(PDAF_tracker, M_of_N, IPDAF_tracker, IPDAInitiation, N_terminate, terminate_thresh, time, x_true,
-                num_ships, H, radar, c2):
+def true_tracks(PDAF_tracker, M_of_N, IPDAF_tracker, IPDAInitiation, N_terminate, terminate_thresh, time, x_true, num_ships, H, radar, c2):
     print('Starting true tracks analysis')
     scans_MofN = dict()
     scans_IPDA = dict()
@@ -27,7 +28,7 @@ def true_tracks(PDAF_tracker, M_of_N, IPDAF_tracker, IPDAInitiation, N_terminate
             for k, timestamp in enumerate(time):
                 measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)],
                                                            timestamp)
-                track_manager.step(measurements)
+                track_manager.step(measurements, timestamp)
 
                 # Check if true tracks have been detected
                 for track_id, state_list in track_manager.track_file.items():
@@ -95,7 +96,7 @@ def error_distances_plot(IPDAF_tracker, IPDAInitiation, track_termination, x_tru
         for k, timestamp in enumerate(time):
             measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)],
                                                        timestamp)
-            track_manager.step(measurements)
+            track_manager.step(measurements, timestamp)
 
         # Error for estimates (One ship)
         for track_id, state_list in track_manager.track_file.items():
@@ -140,7 +141,7 @@ def rmse(P_D, target_model, gate, initiate_thresh, terminate_thresh, P_Markov, t
         for k, timestamp in enumerate(time):
             measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)],
                                                        timestamp)
-            track_manager.step(measurements)
+            track_manager.step(measurements, timestamp)
 
             # Check if true tracks have been detected
             for track_id, state_list in track_manager.track_file.items():
@@ -168,6 +169,13 @@ def rmse(P_D, target_model, gate, initiate_thresh, terminate_thresh, P_Markov, t
     print("scan numbers: ", xIPDA)
     print("Distances: ", yIPDA)
 
+    str_out = ('Scan numbers: ' + str(xIPDA) + '\n\nDistances: ' + str(yIPDA))
+
+    with codecs.open('./Results/{}.txt'.format('rmse_sim'), 'wt', 'utf-8') as file:
+       file.write(str_out)
+
+
+
     # Plot
     fig, ax = visualization.setup_plot(None)
     plt.plot(xIPDA, yIPDA, label='IPDA')
@@ -181,8 +189,7 @@ def rmse(P_D, target_model, gate, initiate_thresh, terminate_thresh, P_Markov, t
     plt.xlim([1, maxKey])
 
 
-def false_tracks(P_D, target_model, gate, M_req, N_test, N_terminate, initiate_thresh, terminate_thresh,
-                 P_Markov, radar_range, R, time):
+def false_tracks(P_D, target_model, gate, M_req, N_test, N_terminate, initiate_thresh, terminate_thresh, P_Markov, radar_range, R, time):
     print('Starting false tracks analysis')
     clutter_MofN = dict()
     clutter_IPDA = dict()
@@ -208,22 +215,24 @@ def false_tracks(P_D, target_model, gate, M_req, N_test, N_terminate, initiate_t
             radar = simulation.SquareRadar(radar_range, clutter_density, P_D, R)
             for k, timestamp in enumerate(time):
                 measurements = radar.generate_clutter_measurements(timestamp)
-                track_manager.step(measurements)
+                track_manager.step(measurements, timestamp)
                 if k % 50 == 0:
-                    print(track_manager.conf_tracks_total)
+                    print(len(track_manager.track_file))
             if method == 0:
-                clutter_MofN[clutter_density] = track_manager.conf_tracks_total
+                clutter_MofN[clutter_density] = len(track_manager.track_file)
             else:
-                clutter_IPDA[clutter_density] = track_manager.conf_tracks_total
+                clutter_IPDA[clutter_density] = len(track_manager.track_file)
 
     list_MofN = sorted(clutter_MofN.items())
     list_IPDA = sorted(clutter_IPDA.items())
     xMofN, yMofN = zip(*list_MofN)
     xIPDA, yIPDA = zip(*list_IPDA)
-    print("Densities IPDA: ", xIPDA)
-    print("False tracks IPDA: ", yIPDA)
-    print("Densities M of N: ", xMofN)
-    print("False tracks M of N: ", yMofN)
+
+    str_out = ('Densities IPDA: ' + str(xIPDA) + '\n\nFalse tracks IPDA: ' + str(yIPDA) +
+        '\n\nDensities MofN: ' + str(xMofN) + '\n\nFalse tracks MofN: ' + str(yMofN))
+
+    with codecs.open('./Results/{}.txt'.format('false_tracks_sim'), 'wt', 'utf-8') as file:
+       file.write(str_out)
 
     # Plot
     fig, ax = visualization.setup_plot(None)
@@ -244,7 +253,7 @@ def existence(IPDAF_tracker, IPDAInitiation, track_termination, radar, x_true, H
         track_manager = tracking.Manager(IPDAF_tracker, IPDAInitiation, track_termination)
         for k, timestamp in enumerate(time):
             measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
-            track_manager.step(measurements)
+            track_manager.step(measurements, timestamp)
 
         # Existence
         for track_id, state_list in track_manager.track_file.items():
@@ -351,8 +360,7 @@ def error_estimates(track_file, x_true, t_end, c1, c2):
     # plt.show()
 
 
-def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
-        N_terminate, radar, c2, x_true, H, time):
+def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh, N_terminate, radar, c2, x_true, H, time):
     print('Starting ROC analysis')
     true_IPDA = dict()
     false_IPDA = dict()
@@ -399,10 +407,10 @@ def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
 
                 for k, timestamp in enumerate(time):
                     measurements = radar.generate_measurements([H.dot(x_true[0, :, k])], timestamp)
-                    track_manager.step(measurements)
+                    track_manager.step(measurements, timestamp)
 
                 # Check if true tracks have been detected
-                num_false = track_manager.conf_tracks_total
+                num_false = len(track_manager.track_file)
                 spotted = 0
                 for track_id, state_list in track_manager.track_file.items():
                     true_track = 1
@@ -433,15 +441,15 @@ def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
                 true_MofN_arr.append(true_MofN[str(M_req) + " of " + str(N_test)])
                 false_MofN_arr.append(false_MofN[str(M_req) + " of " + str(N_test)])
 
-    print("True IPDA: ", true_IPDA)
-    print("False IPDA: ", false_IPDA)
-    print("True MofN: ", true_MofN)
-    print("False MofN: ", false_MofN)
-    print("Arrays:")
-    print("True IPDA: ", true_IPDA_arr)
-    print("False IPDA: ", false_IPDA_arr)
-    print("True MofN: ", true_MofN_arr)
-    print("False MofN: ", false_MofN_arr)
+
+
+    str_out = ('True IPDA: ' + str(true_IPDA) + '\n\nFalse IPDA: ' + str(false_IPDA) +
+        '\n\nTrue MofN: ' + str(true_MofN) + '\n\nFalse MofN: ' + str(false_MofN) +
+        '\n\nArrays:\nTrue IPDA: ' + str(true_IPDA_arr) + '\n\nFalse IPDA: ' + str(false_IPDA_arr) +
+        '\n\nTrue MofN: ' + str(true_MofN) + '\n\nFalse MofN: ' + str(false_MofN_arr))
+
+    with codecs.open('./Results/{}.txt'.format('roc_sim'), 'wt', 'utf-8') as file:
+       file.write(str_out)
 
     # Plot
     fig, ax = visualization.setup_plot(None)

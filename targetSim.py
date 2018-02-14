@@ -9,13 +9,14 @@ from autoseapy import simulation
 from autoseapy import visualization
 from autoseapy import track_initiation
 from autoseapy import clutter_maps
-# import analysis_sim
+import analysis_sim
+from autoseapy.clutter_tests import test_scenario
 
 
 
 # Global constants
 clutter_density = 2e-5
-radar_range = 500
+radar_range = 600
 
 # Initialized target
 num_ships = 2
@@ -25,7 +26,7 @@ x0 = [x0_1, x0_2]
 
 # Time for simulation
 dt = 1
-t_end = 30
+t_end = 3
 time = np.arange(0, t_end, dt)
 K = len(time)             # Num steps
 
@@ -73,7 +74,8 @@ N_timesteps = 20
 grid_density = 50
 # true_clutter_map = clutter_maps.GeometricClutterMap(-radar_range, radar_range, -radar_range, radar_range, clutter_density)
 # true_clutter_map = clutter_maps.nonuniform_musicki_map()
-true_clutter_map = clutter_maps.nonuniform_test_map(radar_range)
+# true_clutter_map = clutter_maps.nonuniform_test_map(radar_range)
+true_clutter_map = test_scenario.clutter_testing_map()
 classic_clutter_map = clutter_maps.ClassicClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
 spatial_clutter_map = clutter_maps.SpatialClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
 temporal_clutter_map = clutter_maps.TemporalClutterMap.from_geometric_map(true_clutter_map, grid_density, N_timesteps)
@@ -139,8 +141,8 @@ track_manager.tracking_method.clutter_map.plot_density_map(ax)
 # analysis_sim.dual_plot_sim(measurements_all, num_ships, track_manager.track_file, x_true)
 
 # Run analysis
-# analysis_sim.roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
-#         N_terminate, radar, c2, x_true, H, time)
+analysis_sim.roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
+        N_terminate, radar, c2, x_true, H, time)
 # analysis_sim.existence(IPDAF_tracker, IPDAInitiation, track_termination, radar, x_true,
 #                        H, num_ships, time)
 # analysis_sim.false_tracks(P_D, target_model, gate, M_req, N_test, N_terminate, initiate_thresh, terminate_thresh,
