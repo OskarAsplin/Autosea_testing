@@ -12,7 +12,7 @@ from autoseapy import clutter_maps
 import analysis_sim
 from autoseapy.clutter_tests import test_scenario
 
-
+import pprint
 
 # Global constants
 clutter_density = 2e-5
@@ -101,39 +101,48 @@ for k, t in enumerate(time):
             x_true[ship, :, k] = traj_tools.randomize_direction(x_true[ship, :, k]).reshape(4)
 
 
-# Run tracking: Test scenario
-measurements_all = []
-for k, timestamp in enumerate(time):
-    # measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
-    measurements = radar.generate_target_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
-    measurements_clutter = true_clutter_map.generate_clutter(timestamp)
-    measurements = measurements.union(measurements_clutter)
-    # measurements = radar.generate_clutter_measurements(timestamp)
-    measurements_all.append(measurements)
-    track_manager.step(measurements, timestamp)
-    if k % 10 == 0:
-        print(k)
+# # Run tracking: Test scenario
+# measurements_all = []
+# for k, timestamp in enumerate(time):
+#     # measurements = radar.generate_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
+#     measurements = radar.generate_target_measurements([H.dot(x_true[ship, :, k]) for ship in range(num_ships)], timestamp)
+#     measurements_clutter = true_clutter_map.generate_clutter(timestamp)
+#     measurements = measurements.union(measurements_clutter)
+#     # measurements = radar.generate_clutter_measurements(timestamp)
+#     measurements_all.append(measurements)
+#     track_manager.step(measurements, timestamp)
+#     if k % 10 == 0:
+#         print(k)
 
-# ------------------------------------------------------------------------------
-print(len(track_manager.track_file))
+# true_targets, measurements_all = test_scenario.generate_scenario()
 
-# Plot
-fig, ax = visualization.plot_measurements(measurements_all)
-# fig, ax = visualization.setup_plot(None)
-for ship in range(num_ships):
-    # ax.plot(x_true[ship, 2, 0:100], x_true[ship, 0, 0:100], 'k', label='True trajectory '+str(ship+1))
-    ax.plot(x_true[ship, 2, :], x_true[ship, 0, :], 'k', label='True trajectory ' + str(ship + 1))
-    ax.plot(x_true[ship, 2, 0], x_true[ship, 0, 0], 'ko')
-visualization.plot_track_pos(track_manager.track_file, ax, 'r')
-ax.set_xlim(-radar_range, radar_range)
-ax.set_ylim(-radar_range, radar_range)
-ax.set_xlabel('East[m]')
-ax.set_ylabel('North[m]')
-ax.set_title('Track position with sample rate: 1/s')
-ax.legend()
+# for measurements in measurements_all:
+#     time = list(measurements)[0].timestamp
+#     track_manager.step(measurements, time)
 
-fig, ax = plt.subplots()
-track_manager.tracking_method.clutter_map.plot_density_map(ax)
+# # ------------------------------------------------------------------------------
+# print(len(track_manager.track_file))
+
+# # Plot
+# fig, ax = visualization.plot_measurements(measurements_all)
+# # # fig, ax = visualization.setup_plot(None)
+# # for ship in range(num_ships):
+# #     # ax.plot(x_true[ship, 2, 0:100], x_true[ship, 0, 0:100], 'k', label='True trajectory '+str(ship+1))
+# #     ax.plot(x_true[ship, 2, :], x_true[ship, 0, :], 'k', label='True trajectory ' + str(ship + 1))
+# #     ax.plot(x_true[ship, 2, 0], x_true[ship, 0, 0], 'ko')
+
+# [target.plot_target(ax) for target in true_targets]
+
+# visualization.plot_track_pos(track_manager.track_file, ax, 'b')
+# ax.set_xlim(-radar_range, radar_range)
+# ax.set_ylim(-radar_range, radar_range)
+# ax.set_xlabel('East[m]')
+# ax.set_ylabel('North[m]')
+# ax.set_title('Track position with sample rate: 1/s')
+# ax.legend()
+
+# fig, ax = plt.subplots()
+# track_manager.tracking_method.clutter_map.plot_density_map(ax)
 
 # Analysis on completed test scenario
 # analysis_sim.error_estimates(track_manager.track_file, x_true, t_end, c1, c2)
@@ -141,8 +150,8 @@ track_manager.tracking_method.clutter_map.plot_density_map(ax)
 # analysis_sim.dual_plot_sim(measurements_all, num_ships, track_manager.track_file, x_true)
 
 # Run analysis
-analysis_sim.roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
-        N_terminate, radar, c2, x_true, H, time)
+# analysis_sim.roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh,
+#         N_terminate, radar, c2, x_true, H, time)
 # analysis_sim.existence(IPDAF_tracker, IPDAInitiation, track_termination, radar, x_true,
 #                        H, num_ships, time)
 # analysis_sim.false_tracks(P_D, target_model, gate, M_req, N_test, N_terminate, initiate_thresh, terminate_thresh,
@@ -153,5 +162,7 @@ analysis_sim.roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_t
 #                                   H, num_ships, t_end)
 # analysis_sim.true_tracks(PDAF_tracker, M_of_N, IPDAF_tracker, IPDAInitiation, N_terminate, terminate_thresh,
 #                          time, x_true, num_ships, H, radar, c2)
+
+analysis_sim.roc_test_scenario(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh, spatial_clutter_map)
 
 plt.show()

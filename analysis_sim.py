@@ -2,11 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import codecs
+import pprint
 
 from autoseapy import tracking
 from autoseapy import simulation
 from autoseapy import visualization
 from autoseapy import track_initiation
+from autoseapy import clutter_maps
+from autoseapy.clutter_tests import test_scenario
 
 
 def true_tracks(PDAF_tracker, M_of_N, IPDAF_tracker, IPDAInitiation, N_terminate, terminate_thresh, time, x_true, num_ships, H, radar, c2):
@@ -455,6 +458,92 @@ def roc(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh, N_
     fig, ax = visualization.setup_plot(None)
     plt.plot(false_IPDA_arr, true_IPDA_arr, label='IPDA')
     plt.plot(false_MofN_arr, true_MofN_arr, label='M of N')
+    ax.set_title('ROC')
+    ax.set_xlabel(r'$P_{FA}$')
+    ax.set_ylabel(r'$P_D$')
+    ax.legend()
+    plt.ylim([0, 1])
+    plt.xlim([0, 1])
+
+
+def rmse_criteria_check(track, true_targets):
+    estimates = np.array([estimate.est_posterior for estimate in track])
+    rmse_lim = 25
+    for k, true_target in enumerate(true_targets):
+        time = [estimate.timestamp for estimate in true_target.state_list]
+        true_state = np.array([estimate.est_posterior for estimate in true_target.state_list])
+        idx = (np.abs(time - track[0].timestamp)).argmin()
+        dist = np.hypot(true_state[idx:idx + len(estimates), 0] - estimates[:,0], true_state[idx:idx + len(estimates), 2] - estimates[:,2])
+        rmse = sum(dist) / len(dist)
+        if rmse <= rmse_lim: return [True, k]
+    return [False, 0]
+
+
+def roc_test_scenario(P_D, target_model, gate, P_Markov, initiate_thresh, terminate_thresh, spatial_clutter_map):
+    np.random.seed(123)
+
+    print('Starting ROC analysis')
+
+    num_runs = 5
+    init_values = [0.995, 0.98, 0.95, 0.9, 0.85, 0.8, 0.7, 0.6, 0.51]
+    num_IPDA_tests = len(init_values)
+    true_IPDA = dict()
+    false_IPDA = dict()
+    true_IPDA_arr = []
+    false_IPDA_arr = []
+    init_it = -1
+    for para_test in range(num_IPDA_tests):
+        init_it += 1
+        initiate_thresh = init_values[init_it]
+        true_tracks = 0
+        false_tracks = 0
+        for run in range(num_runs):
+            # Run tracking
+            IPDAF_tracker = tracking.IPDAFTracker(P_D, target_model, gate, P_Markov, gate.gamma, clutter_map=spatial_clutter_map)
+            IPDAInitiation = track_initiation.IPDAInitiation(initiate_thresh, terminate_thresh, IPDAF_tracker, gate)
+            track_termination = tracking.TrackTerminatorIPDA(terminate_thresh)
+            track_manager = tracking.Manager(IPDAF_tracker, IPDAInitiation, track_termination)
+
+            true_targets, measurements_all = test_scenario.generate_scenario()
+            tracks_checked = set()
+            true_targets_detected = set()
+            num_false = 0
+            
+            for measurements in measurements_all:
+                time = list(measurements)[0].timestamp
+                track_manager.step(measurements, time)
+
+                new_conf_tracks = [state_list for track_id, state_list in track_manager.track_file.items() if track_id not in tracks_checked]
+                for track in new_conf_tracks:
+                    [true_track, idx_target] = rmse_criteria_check(track, true_targets)
+                    if true_track:
+                        if idx_target not in true_targets_detected: true_tracks += 1
+                        true_targets_detected.add(idx_target)
+                    else:
+                        num_false += 1
+                [tracks_checked.add(idx) for idx in track_manager.active_tracks]
+
+            false_tracks += min(num_false, 1)
+
+            # Print run number for debugging purposes
+            if run % 100 == 0:
+                print("%.1f" % (100 * (run + para_test * num_runs) /
+                                (num_IPDA_tests * num_runs)), "% done")
+            
+        true_IPDA[initiate_thresh] = (true_tracks/2.) / num_runs
+        false_IPDA[initiate_thresh] = (false_tracks * 1.) / num_runs
+        true_IPDA_arr.append(true_IPDA[initiate_thresh])
+        false_IPDA_arr.append(false_IPDA[initiate_thresh])
+
+    str_out = ('True IPDA: ' + str(true_IPDA) + '\n\nFalse IPDA: ' + str(false_IPDA) +
+        '\n\nArrays:\nTrue IPDA: ' + str(true_IPDA_arr) + '\n\nFalse IPDA: ' + str(false_IPDA_arr))
+
+    with codecs.open('./Results/{}.txt'.format('roc_sim'), 'wt', 'utf-8') as file:
+       file.write(str_out)
+
+    # Plot
+    fig, ax = visualization.setup_plot(None)
+    plt.semilogy(false_IPDA_arr, true_IPDA_arr, label='IPDA')
     ax.set_title('ROC')
     ax.set_xlabel(r'$P_{FA}$')
     ax.set_ylabel(r'$P_D$')
